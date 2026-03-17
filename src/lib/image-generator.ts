@@ -1,84 +1,104 @@
-// Generador de imágenes - usa el mini-servicio proxy interno
+// Generador de imágenes GRATUITO usando Hugging Face API
+// Funciona en Vercel - 100% gratis sin API key para modelos públicos
 
 // Tamaños disponibles
 export const IMAGE_SIZES = [
-  { value: '1024x1024', label: 'Cuadrado 1:1', description: 'Instagram, Facebook' },
-  { value: '768x1344', label: 'Retrato 9:16', description: 'Stories, Reels' },
-  { value: '1344x768', label: 'Paisaje 16:9', description: 'YouTube, Blogs' },
+  { value: '512x512', label: 'Cuadrado (512x512)', description: 'Rápido' },
+  { value: '768x768', label: 'Grande (768x768)', description: 'Más detalle' },
 ]
 
 // Estilos predefinidos
 export const IMAGE_STYLES = [
-  { value: 'none', label: 'Sin estilo', emoji: '🎨' },
-  { value: 'realistic', label: 'Fotorrealista', emoji: '📷' },
-  { value: 'digital-art', label: 'Arte Digital', emoji: '🖼️' },
-  { value: 'anime', label: 'Anime', emoji: '🌸' },
-  { value: 'oil-painting', label: 'Óleo', emoji: '🎨' },
-  { value: '3d-render', label: '3D Render', emoji: '🎮' },
-  { value: 'minimalist', label: 'Minimalista', emoji: '⬜' },
-  { value: 'cyberpunk', label: 'Cyberpunk', emoji: '🤖' },
+  { value: 'none', label: 'Sin estilo', prompt: '' },
+  { value: 'realistic', label: 'Fotorrealista', prompt: 'photorealistic, highly detailed, 8k photo' },
+  { value: 'digital-art', label: 'Arte Digital', prompt: 'digital art, trending on artstation' },
+  { value: 'anime', label: 'Anime', prompt: 'anime style, high quality' },
+  { value: 'oil-painting', label: 'Óleo', prompt: 'oil painting, masterpiece' },
+  { value: 'cyberpunk', label: 'Cyberpunk', prompt: 'cyberpunk, neon lights, futuristic' },
 ]
 
-// URL del proxy de imágenes (puerto 3030)
-const IMAGE_PROXY_URL = process.env.IMAGE_PROXY_URL || 'http://localhost:3030'
+// Modelo gratuito de Stable Diffusion en Hugging Face
+const MODEL_API = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
 
-// Generar imagen
 export async function generateImage(
   prompt: string,
-  size: string = '1024x1024',
+  size: string = '512x512',
   style: string = 'none'
 ): Promise<{ 
   success: boolean
-  imageUrl?: string
   imageBase64?: string
   error?: string 
 }> {
   try {
-    console.log('🎨 Enviando petición al proxy de imágenes...')
+    const [width, height] = size.split('x').map(Number)
     
-    // Llamar al mini-servicio proxy
-    const response = await fetch(`${IMAGE_PROXY_URL}/generate`, {
+    // Obtener estilo
+    const styleData = IMAGE_STYLES.find(s => s.value === style)
+    const finalPrompt = styleData?.prompt 
+      ? `${prompt}, ${styleData.prompt}`
+      : prompt
+
+    console.log('🎨 Generando con Hugging Face (GRATIS):', finalPrompt.substring(0, 60))
+
+    // Llamar a Hugging Face API - GRATIS para modelos públicos
+    const response = await fetch(MODEL_API, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, size, style })
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: finalPrompt,
+        parameters: {
+          width,
+          height,
+        }
+      })
     })
 
-    const data = await response.json()
-
-    if (!response.ok || !data.success) {
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('HF Error:', response.status, errorText)
+      
+      // Si está cargando el modelo, esperar y reintentar
+      if (response.status === 503) {
+        return { 
+          success: false, 
+          error: 'El modelo se está cargando. Espera 20 segundos e intenta de nuevo.' 
+        }
+      }
+      
       return { 
         success: false, 
-        error: data.error || 'Error al generar la imagen' 
+        error: `Error del servidor (${response.status}). Intenta de nuevo.` 
       }
     }
 
-    console.log('✅ Imagen recibida del proxy')
+    // La respuesta es la imagen directamente en bytes
+    const imageBuffer = await response.arrayBuffer()
+    
+    if (!imageBuffer || imageBuffer.byteLength < 1000) {
+      return { success: false, error: 'No se pudo generar la imagen' }
+    }
 
+    // Convertir a base64
+    const imageBase64 = Buffer.from(imageBuffer).toString('base64')
+    
+    console.log('✅ Imagen generada!')
+    
     return { 
       success: true, 
-      imageBase64: data.imageBase64,
-      imageUrl: data.imageUrl
+      imageBase64 
     }
 
   } catch (error: any) {
-    console.error('❌ Error:', error)
-    
-    // Fallback: intentar con URL directa
+    console.error('Error:', error)
     return {
       success: false,
-      error: 'El servicio de imágenes no está disponible. Intenta de nuevo en unos segundos.'
+      error: 'Error de conexión. Intenta de nuevo.'
     }
   }
 }
 
-// Mejorar prompt
 export function enhancePrompt(userPrompt: string): string {
-  const prompt = userPrompt.trim()
-  const lowerPrompt = prompt.toLowerCase()
-  
-  if (!lowerPrompt.includes('quality') && !lowerPrompt.includes('detailed')) {
-    return `${prompt}, high quality, detailed`
-  }
-
-  return prompt
+  return userPrompt.trim()
 }
