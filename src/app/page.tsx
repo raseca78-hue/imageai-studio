@@ -1,24 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Textarea } from '@/components/ui/textarea'
-import { toast } from 'sonner'
-import { Sparkles, Download, Loader2 } from 'lucide-react'
 
 export default function Home() {
   const [prompt, setPrompt] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const generate = async () => {
     if (!prompt.trim()) {
-      toast.error('Escribe una descripción')
+      setError('Escribe una descripción')
       return
     }
 
     setLoading(true)
+    setError('')
+    
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -30,12 +28,11 @@ export default function Home() {
       
       if (data.imageUrl) {
         setImageUrl(data.imageUrl)
-        toast.success('¡Imagen generada!')
       } else {
-        toast.error(data.error || 'Error')
+        setError(data.error || 'Error al generar')
       }
     } catch {
-      toast.error('Error de conexión')
+      setError('Error de conexión')
     } finally {
       setLoading(false)
     }
@@ -46,88 +43,122 @@ export default function Home() {
     const a = document.createElement('a')
     a.href = imageUrl
     a.download = `imagen-${Date.now()}.png`
+    a.target = '_blank'
     a.click()
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white">
-      <div className="container mx-auto px-4 py-8">
+    <main style={{ 
+      minHeight: '100vh', 
+      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+      padding: '20px',
+      color: 'white'
+    }}>
+      <div style={{ maxWidth: '600px', margin: '0 auto' }}>
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Sparkles className="w-10 h-10 text-yellow-400" />
-            <h1 className="text-4xl font-bold">ImageAI Studio</h1>
-          </div>
-          <p className="text-xl text-gray-300">Genera imágenes con IA - 100% GRATIS</p>
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <h1 style={{ fontSize: '2.5rem', marginBottom: '10px' }}>
+            ✨ ImageAI Studio
+          </h1>
+          <p style={{ color: '#aaa' }}>
+            Genera imágenes con IA - 100% GRATIS
+          </p>
         </div>
 
-        {/* Main Card */}
-        <Card className="max-w-2xl mx-auto bg-white/10 backdrop-blur border-white/20">
-          <CardHeader>
-            <CardTitle className="text-white">Describe tu imagen</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Textarea
-              placeholder="Ej: un gato astronauta flotando en el espacio..."
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="min-h-[100px] bg-white/5 border-white/20 text-white placeholder:text-gray-400"
-              disabled={loading}
+        {/* Input Card */}
+        <div style={{ 
+          background: 'rgba(255,255,255,0.1)', 
+          borderRadius: '16px', 
+          padding: '24px',
+          marginBottom: '20px'
+        }}>
+          <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
+            Describe tu imagen:
+          </label>
+          
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="Ej: un gato astronauta flotando en el espacio..."
+            style={{
+              width: '100%',
+              minHeight: '100px',
+              padding: '12px',
+              borderRadius: '8px',
+              border: '1px solid #333',
+              background: 'rgba(255,255,255,0.05)',
+              color: 'white',
+              fontSize: '16px',
+              marginBottom: '15px',
+              resize: 'vertical'
+            }}
+            disabled={loading}
+          />
+
+          <button
+            onClick={generate}
+            disabled={loading || !prompt.trim()}
+            style={{
+              width: '100%',
+              padding: '14px',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              border: 'none',
+              borderRadius: '8px',
+              background: loading ? '#666' : 'linear-gradient(90deg, #7c3aed, #ec4899)',
+              color: 'white',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'transform 0.2s'
+            }}
+          >
+            {loading ? '⏳ Generando...' : '🎨 Generar Imagen'}
+          </button>
+
+          {error && (
+            <p style={{ color: '#ff6b6b', marginTop: '10px', textAlign: 'center' }}>
+              {error}
+            </p>
+          )}
+        </div>
+
+        {/* Result */}
+        {imageUrl && (
+          <div style={{ 
+            background: 'rgba(255,255,255,0.1)', 
+            borderRadius: '16px', 
+            padding: '20px',
+            textAlign: 'center'
+          }}>
+            <img 
+              src={imageUrl} 
+              alt="Imagen generada"
+              style={{ 
+                width: '100%', 
+                maxWidth: '512px',
+                borderRadius: '8px',
+                marginBottom: '15px'
+              }}
             />
-            
-            <Button 
-              onClick={generate} 
-              disabled={loading || !prompt.trim()}
-              className="w-full h-12 text-lg bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+            <button
+              onClick={download}
+              style={{
+                padding: '12px 24px',
+                fontSize: '16px',
+                border: '2px solid white',
+                borderRadius: '8px',
+                background: 'transparent',
+                color: 'white',
+                cursor: 'pointer'
+              }}
             >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Generando...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5 mr-2" />
-                  Generar Imagen
-                </>
-              )}
-            </Button>
-
-            {/* Result */}
-            {imageUrl && (
-              <div className="mt-4 space-y-4">
-                <img 
-                  src={imageUrl} 
-                  alt="Imagen generada" 
-                  className="w-full rounded-lg"
-                />
-                <Button onClick={download} variant="outline" className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20">
-                  <Download className="w-4 h-4 mr-2" />
-                  Descargar
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Info */}
-        <div className="max-w-2xl mx-auto mt-8 grid grid-cols-3 gap-4 text-center">
-          <div className="p-4 rounded-lg bg-white/5">
-            <div className="text-2xl mb-1">🎨</div>
-            <div className="text-sm text-gray-300">Fotorrealista</div>
+              📥 Descargar Imagen
+            </button>
           </div>
-          <div className="p-4 rounded-lg bg-white/5">
-            <div className="text-2xl mb-1">🖼️</div>
-            <div className="text-sm text-gray-300">Arte Digital</div>
-          </div>
-          <div className="p-4 rounded-lg bg-white/5">
-            <div className="text-2xl mb-1">🌸</div>
-            <div className="text-sm text-gray-300">Anime</div>
-          </div>
-        </div>
+        )}
 
-        <p className="text-center mt-8 text-gray-400 text-sm">
-          Powered by AI • 100% Gratuito • Sin registro
+        {/* Footer */}
+        <p style={{ textAlign: 'center', marginTop: '30px', color: '#666', fontSize: '14px' }}>
+          Powered by Pollinations AI • 100% Gratuito
         </p>
       </div>
     </main>
