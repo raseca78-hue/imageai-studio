@@ -1,5 +1,4 @@
-// Generador de imágenes GRATUITO usando Pollinations.ai
-// 100% gratis, sin API key, sin límites
+// Generador de imágenes - usa el mini-servicio proxy interno
 
 // Tamaños disponibles
 export const IMAGE_SIZES = [
@@ -10,17 +9,20 @@ export const IMAGE_SIZES = [
 
 // Estilos predefinidos
 export const IMAGE_STYLES = [
-  { value: 'none', label: 'Sin estilo', emoji: '🎨', prompt: '' },
-  { value: 'realistic', label: 'Fotorrealista', emoji: '📷', prompt: 'photorealistic, highly detailed, professional photography, 8k' },
-  { value: 'digital-art', label: 'Arte Digital', emoji: '🖼️', prompt: 'digital art, vibrant colors, modern illustration, trending on artstation' },
-  { value: 'anime', label: 'Anime', emoji: '🌸', prompt: 'anime style, manga aesthetic, vibrant colors, detailed' },
-  { value: 'oil-painting', label: 'Óleo', emoji: '🎨', prompt: 'oil painting style, classical art, masterpiece, rich textures' },
-  { value: '3d-render', label: '3D Render', emoji: '🎮', prompt: '3D render, octane render, highly detailed, volumetric lighting' },
-  { value: 'minimalist', label: 'Minimalista', emoji: '⬜', prompt: 'minimalist design, clean lines, simple shapes, modern' },
-  { value: 'cyberpunk', label: 'Cyberpunk', emoji: '🤖', prompt: 'cyberpunk style, neon lights, futuristic, dark atmosphere' },
+  { value: 'none', label: 'Sin estilo', emoji: '🎨' },
+  { value: 'realistic', label: 'Fotorrealista', emoji: '📷' },
+  { value: 'digital-art', label: 'Arte Digital', emoji: '🖼️' },
+  { value: 'anime', label: 'Anime', emoji: '🌸' },
+  { value: 'oil-painting', label: 'Óleo', emoji: '🎨' },
+  { value: '3d-render', label: '3D Render', emoji: '🎮' },
+  { value: 'minimalist', label: 'Minimalista', emoji: '⬜' },
+  { value: 'cyberpunk', label: 'Cyberpunk', emoji: '🤖' },
 ]
 
-// Generar imagen - devuelve URL directamente
+// URL del proxy de imágenes (puerto 3030)
+const IMAGE_PROXY_URL = process.env.IMAGE_PROXY_URL || 'http://localhost:3030'
+
+// Generar imagen
 export async function generateImage(
   prompt: string,
   size: string = '1024x1024',
@@ -32,58 +34,50 @@ export async function generateImage(
   error?: string 
 }> {
   try {
-    // Obtener estilo
-    const styleData = IMAGE_STYLES.find(s => s.value === style)
-    const finalPrompt = styleData?.prompt
-      ? `${prompt}, ${styleData.prompt}`
-      : prompt
-
-    // Dimensiones
-    const [width, height] = size.split('x').map(Number)
-
-    // URL única
-    const seed = Math.floor(Math.random() * 100000000)
-    const encodedPrompt = encodeURIComponent(finalPrompt)
+    console.log('🎨 Enviando petición al proxy de imágenes...')
     
-    // Pollinations.ai - GRATIS para siempre
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&enhance=true&model=flux`
+    // Llamar al mini-servicio proxy
+    const response = await fetch(`${IMAGE_PROXY_URL}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, size, style })
+    })
 
-    console.log('🎨 Generando:', finalPrompt.substring(0, 50) + '...')
-    console.log('📡 URL:', imageUrl)
+    const data = await response.json()
+
+    if (!response.ok || !data.success) {
+      return { 
+        success: false, 
+        error: data.error || 'Error al generar la imagen' 
+      }
+    }
+
+    console.log('✅ Imagen recibida del proxy')
 
     return { 
       success: true, 
-      imageUrl,
-      imageBase64: '' // El frontend cargará desde la URL
+      imageBase64: data.imageBase64,
+      imageUrl: data.imageUrl
     }
 
   } catch (error: any) {
     console.error('❌ Error:', error)
+    
+    // Fallback: intentar con URL directa
     return {
       success: false,
-      error: 'Error al generar. Intenta de nuevo.'
+      error: 'El servicio de imágenes no está disponible. Intenta de nuevo en unos segundos.'
     }
   }
 }
 
-// Mejorar prompt automáticamente
+// Mejorar prompt
 export function enhancePrompt(userPrompt: string): string {
   const prompt = userPrompt.trim()
   const lowerPrompt = prompt.toLowerCase()
   
-  // Añadir mejoras si no las tiene
-  const enhancements: string[] = []
-  
   if (!lowerPrompt.includes('quality') && !lowerPrompt.includes('detailed')) {
-    enhancements.push('high quality', 'detailed')
-  }
-  
-  if (!lowerPrompt.includes('professional') && prompt.length < 150) {
-    enhancements.push('professional')
-  }
-
-  if (enhancements.length > 0 && prompt.length < 200) {
-    return `${prompt}, ${enhancements.join(', ')}`
+    return `${prompt}, high quality, detailed`
   }
 
   return prompt

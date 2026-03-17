@@ -1,17 +1,15 @@
 import { db } from './db'
-import { hash, compare } from 'crypto'
 
 // Configuración de planes
 export const PLAN_CONFIG = {
   FREE: {
-    name: 'Gratuito',
+    name: 'Prueba',
     price: 0,
-    credits: 5,
+    credits: 1,
     features: [
-      '5 imágenes por día',
-      'Calidad estándar',
-      'Descarga en PNG',
-      'Historial de 7 días'
+      '1 imagen de prueba',
+      'Para verificar que funciona',
+      'Sin compromiso'
     ]
   },
   PRO: {
@@ -21,29 +19,24 @@ export const PLAN_CONFIG = {
     features: [
       '100 imágenes por día',
       'Alta calidad',
-      'Descarga en PNG/JPG',
-      'Historial ilimitado',
-      'Estilos premium',
+      'Todos los estilos',
       'Sin marca de agua'
     ]
   },
   BUSINESS: {
     name: 'Business',
     price: 29.99,
-    credits: 999999, // Prácticamente ilimitado
+    credits: 999999,
     features: [
       'Imágenes ilimitadas',
       'Máxima calidad',
       'API access',
-      'Historial ilimitado',
-      'Todos los estilos',
-      'Soporte prioritario',
       'Uso comercial'
     ]
   }
 }
 
-// Hash password simple para demo
+// Hash de contraseña
 export async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(password + 'imageai_salt_2024')
@@ -52,85 +45,61 @@ export async function hashPassword(password: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const passwordHash = await hashPassword(password)
-  return passwordHash === hash
-}
-
-// Crear o actualizar usuario
-export async function createOrUpdateUser(email: string, name?: string, password?: string) {
-  const existingUser = await db.user.findUnique({ where: { email } })
-  
-  if (existingUser) {
-    return existingUser
-  }
-  
-  const hashedPassword = password ? await hashPassword(password) : null
-  
-  return db.user.create({
-    data: {
-      email,
-      name: name || email.split('@')[0],
-      password: hashedPassword,
-      plan: 'FREE',
-      credits: PLAN_CONFIG.FREE.credits,
-      creditsUsed: 0
-    }
-  })
-}
-
-// Verificar y resetear créditos diarios
+// Obtener usuario con créditos actualizados
 export async function getUserWithCredits(userId: string) {
-  const user = await db.user.findUnique({ where: { id: userId } })
-  if (!user) return null
-  
-  const now = new Date()
-  const lastReset = new Date(user.lastReset)
-  
-  // Resetear créditos si pasó un día
-  if (now.getDate() !== lastReset.getDate() || 
-      now.getMonth() !== lastReset.getMonth() || 
-      now.getFullYear() !== lastReset.getFullYear()) {
-    
-    const planCredits = PLAN_CONFIG[user.plan].credits
-    await db.user.update({
-      where: { id: userId },
-      data: {
-        credits: planCredits,
-        creditsUsed: 0,
-        lastReset: now
+  try {
+    const user = await db.user.findUnique({ where: { id: userId } })
+    if (!user) return null
+
+    const now = new Date()
+    const lastReset = new Date(user.lastReset)
+
+    // Solo resetear créditos para planes de pago
+    // El plan FREE tiene 1 crédito que NO se resetea
+    if (user.plan !== 'FREE') {
+      if (now.getDate() !== lastReset.getDate() || 
+          now.getMonth() !== lastReset.getMonth() || 
+          now.getFullYear() !== lastReset.getFullYear()) {
+        
+        const planCredits = PLAN_CONFIG[user.plan as keyof typeof PLAN_CONFIG]?.credits || 100
+        
+        const updated = await db.user.update({
+          where: { id: userId },
+          data: {
+            credits: planCredits,
+            creditsUsed: 0,
+            lastReset: now
+          }
+        })
+        return updated
       }
-    })
-    
-    return { ...user, credits: planCredits, creditsUsed: 0 }
+    }
+
+    return user
+  } catch (error) {
+    console.error('Error en getUserWithCredits:', error)
+    return null
   }
-  
-  return user
 }
 
 // Descontar créditos
-export async function deductCredits(userId: string, amount: number = 1): Promise<{ success: boolean; remaining: number; error?: string }> {
-  const user = await getUserWithCredits(userId)
-  if (!user) {
-    return { success: false, remaining: 0, error: 'Usuario no encontrado' }
+export async function deductCredits(userId: string, amount: number = 1): Promise<boolean> {
+  try {
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        credits: { decrement: amount },
+        creditsUsed: { increment: amount }
+      }
+    })
+    return true
+  } catch (error) {
+    console.error('Error en deductCredits:', error)
+    return false
   }
-  
-  if (user.credits < amount) {
-    return { success: false, remaining: user.credits, error: 'Créditos insuficientes' }
-  }
-  
-  await db.user.update({
-    where: { id: userId },
-    data: {
-      credits: { decrement: amount },
-      creditsUsed: { increment: amount }
-    }
-  })
-  
-  return { success: true, remaining: user.credits - amount }
 }
 
-// Obtener límite diario según plan
+// Obtener límite según plan
 export function getDailyLimit(plan: string): number {
-  return PLAN_CONFIG[plan as keyof typeof PLAN_CONFIG]?.credits || 5
+  return PLAN_CONFIG[plan as keyof typeof PLAN_CONFIG]?.credits || 1
 }

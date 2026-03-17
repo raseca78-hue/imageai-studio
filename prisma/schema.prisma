@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -23,13 +23,13 @@ model User {
   email         String    @unique
   name          String?
   image         String?
-  password      String?   // Hash bcrypt para auth local
+  password      String?
   
   // Plan y créditos
   plan          Plan      @default(FREE)
-  credits       Int       @default(5)    // Créditos disponibles
-  creditsUsed   Int       @default(0)    // Créditos usados hoy
-  lastReset     DateTime  @default(now()) // Último reset de créditos diarios
+  credits       Int       @default(1)
+  creditsUsed   Int       @default(0)
+  lastReset     DateTime  @default(now())
   
   // Stripe
   stripeCustomerId     String?   @unique
@@ -51,11 +51,11 @@ model Image {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  prompt      String              // Prompt original
-  enhancedPrompt String?          // Prompt mejorado por IA
-  imageBase64 String?             // Imagen en base64
-  imageSize   String              // "1024x1024", "768x1344", etc.
-  style       String?             // Estilo aplicado
+  prompt      String
+  enhancedPrompt String?
+  imageBase64 String?
+  imageSize   String
+  style       String?
   
   isPublic    Boolean  @default(false)
   likes       Int      @default(0)
@@ -69,21 +69,21 @@ model Activity {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  type        String   // "generate", "upgrade", "purchase"
+  type        String
   description String
-  credits     Int      // Créditos usados/ganados
+  credits     Int
   
   createdAt   DateTime @default(now())
 }
 
-// Configuración de planes (para fácil modificación)
+// Configuración de planes
 model PlanConfig {
   id          String   @id @default(cuid())
   plan        Plan     @unique
   name        String
-  price       Float    // Precio mensual
-  credits     Int      // Créditos por día
-  features    String   // JSON array de características
+  price       Float
+  credits     Int
+  features    String
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
