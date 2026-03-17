@@ -107,8 +107,7 @@ export default function Home() {
               borderRadius: '8px',
               background: loading ? '#666' : 'linear-gradient(90deg, #7c3aed, #ec4899)',
               color: 'white',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'transform 0.2s'
+              cursor: loading ? 'not-allowed' : 'pointer'
             }}
           >
             {loading ? '⏳ Generando...' : '🎨 Generar Imagen'}
@@ -158,7 +157,7 @@ export default function Home() {
 
         {/* Footer */}
         <p style={{ textAlign: 'center', marginTop: '30px', color: '#666', fontSize: '14px' }}>
-          Powered by Pollinations AI • 100% Gratuito
+          Powered by AI • 100% Gratuito • Sin registro
         </p>
       </div>
     </main>
