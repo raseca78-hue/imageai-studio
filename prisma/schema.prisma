@@ -1,90 +1,26 @@
-// ImageAI Studio - Database Schema
-// Plataforma SaaS de generación de imágenes con IA
-
+// Base de datos SQLite simple
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
-// Planes de suscripción disponibles
-enum Plan {
-  FREE
-  PRO
-  BUSINESS
-}
-
-// Usuarios de la plataforma
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  image         String?
-  password      String?
-  
-  // Plan y créditos
-  plan          Plan      @default(FREE)
-  credits       Int       @default(1)
-  creditsUsed   Int       @default(0)
-  lastReset     DateTime  @default(now())
-  
-  // Stripe
-  stripeCustomerId     String?   @unique
-  stripeSubscriptionId String?   @unique
-  stripePriceId        String?
-  stripeCurrentPeriodEnd DateTime?
-  
-  // Relaciones
-  images        Image[]
-  activities    Activity[]
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  plan        String   @default("FREE")
+  credits     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
-// Imágenes generadas
 model Image {
   id          String   @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
   prompt      String
-  enhancedPrompt String?
-  imageBase64 String?
-  imageSize   String
-  style       String?
-  
-  isPublic    Boolean  @default(false)
-  likes       Int      @default(0)
-  
   createdAt   DateTime @default(now())
-}
-
-// Historial de actividades
-model Activity {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  type        String
-  description String
-  credits     Int
-  
-  createdAt   DateTime @default(now())
-}
-
-// Configuración de planes
-model PlanConfig {
-  id          String   @id @default(cuid())
-  plan        Plan     @unique
-  name        String
-  price       Float
-  credits     Int
-  features    String
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
