@@ -6,9 +6,9 @@ import { getToken } from 'next-auth/jwt'
 
 export async function POST(request: NextRequest) {
   try {
-    const token = await getToken({ req: request })
+    console.log('🚀 Iniciando generación...')
     
-    // Para demo, permitir usuarios anónimos con límites
+    const token = await getToken({ req: request })
     let userId = token?.id as string | null
     
     // Si no hay usuario, crear uno temporal
@@ -16,9 +16,9 @@ export async function POST(request: NextRequest) {
       const anonymousUser = await db.user.create({
         data: {
           email: `anon_${Date.now()}@temp.com`,
-          name: 'Usuario Anónimo',
+          name: 'Usuario',
           plan: 'FREE',
-          credits: 3,
+          credits: 1,
           creditsUsed: 0
         }
       })
@@ -30,16 +30,7 @@ export async function POST(request: NextRequest) {
 
     if (!prompt || prompt.trim().length < 3) {
       return NextResponse.json(
-        { error: 'El prompt debe tener al menos 3 caracteres' },
-        { status: 400 }
-      )
-    }
-
-    // Verificar tamaño válido
-    const validSize = IMAGE_SIZES.find(s => s.value === size)
-    if (!validSize) {
-      return NextResponse.json(
-        { error: 'Tamaño de imagen no válido' },
+        { error: 'Escribe una descripción de al menos 3 caracteres' },
         { status: 400 }
       )
     }
@@ -48,7 +39,7 @@ export async function POST(request: NextRequest) {
     const user = await getUserWithCredits(userId)
     if (!user || user.credits < 1) {
       return NextResponse.json(
-        { error: 'No tienes créditos suficientes. ¡Actualiza tu plan!', needsUpgrade: true },
+        { error: 'No tienes créditos. ¡Actualiza tu plan!', needsUpgrade: true },
         { status: 402 }
       )
     }
@@ -57,11 +48,12 @@ export async function POST(request: NextRequest) {
     const enhancedPrompt = enhancePrompt(prompt.trim())
 
     // Generar imagen
+    console.log('🎨 Generando imagen...')
     const result = await generateImage(enhancedPrompt, size, style)
 
-    if (!result.success || !result.imageBase64) {
+    if (!result.success) {
       return NextResponse.json(
-        { error: result.error || 'Error al generar la imagen' },
+        { error: result.error || 'Error al generar' },
         { status: 500 }
       )
     }
@@ -69,33 +61,29 @@ export async function POST(request: NextRequest) {
     // Descontar créditos
     await deductCredits(userId, 1)
 
-    // Guardar en base de datos
-    const image = await db.image.create({
-      data: {
-        userId,
-        prompt: prompt.trim(),
-        enhancedPrompt,
-        imageBase64: result.imageBase64.substring(0, 100) + '...',
-        imageSize: size,
-        style
-      }
-    })
-
-    // Registrar actividad
-    await db.activity.create({
-      data: {
-        userId,
-        type: 'generate',
-        description: `Generó imagen: "${prompt.substring(0, 50)}..."`,
-        credits: 1
-      }
-    })
+    // Guardar referencia en BD
+    try {
+      await db.image.create({
+        data: {
+          userId,
+          prompt: prompt.trim(),
+          enhancedPrompt,
+          imageBase64: result.imageUrl || '',
+          imageSize: size,
+          style
+        }
+      })
+    } catch (e) {
+      console.log('No se guardó en BD, pero OK')
+    }
 
     const updatedUser = await getUserWithCredits(userId)
 
+    console.log('✅ Imagen generada!')
+
     return NextResponse.json({
       success: true,
-      imageId: image.id,
+      imageUrl: result.imageUrl,
       imageBase64: result.imageBase64,
       prompt: enhancedPrompt,
       size,
@@ -103,15 +91,15 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('Error en generate API:', error)
+    console.error('Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Error interno del servidor' },
+      { error: 'Error inesperado. Intenta de nuevo.' },
       { status: 500 }
     )
   }
 }
 
-// GET - Obtener historial de imágenes
+// GET - Historial
 export async function GET(request: NextRequest) {
   try {
     const token = await getToken({ req: request })
@@ -130,6 +118,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ images })
 
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ images: [] })
   }
 }

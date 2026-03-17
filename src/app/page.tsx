@@ -159,11 +159,13 @@ export default function HomePage() {
   // Generate image
   const handleGenerate = async () => {
     if (!prompt.trim()) {
-      toast.error('Por favor escribe un prompt')
+      toast.error('Por favor escribe una descripción')
       return
     }
 
     setIsGenerating(true)
+    setGeneratedImage(null) // Limpiar imagen anterior
+    
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
@@ -192,10 +194,14 @@ export default function HomePage() {
         return
       }
 
-      setGeneratedImage(data.imageBase64)
+      // Guardar URL de imagen (puede ser URL o base64)
+      const imageData = data.imageUrl || data.imageBase64
+      setGeneratedImage(imageData)
+      
+      // Añadir a recientes
       setRecentImages(prev => [{
-        prompt: data.prompt,
-        imageBase64: data.imageBase64,
+        prompt: data.prompt || prompt,
+        imageBase64: imageData,
         createdAt: new Date()
       }, ...prev.slice(0, 9)])
       
@@ -217,14 +223,31 @@ export default function HomePage() {
   }
 
   // Download image
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!generatedImage) return
     
-    const link = document.createElement('a')
-    link.href = `data:image/png;base64,${generatedImage}`
-    link.download = `imageai-${Date.now()}.png`
-    link.click()
-    toast.success('Imagen descargada')
+    try {
+      let dataUrl: string
+      
+      if (generatedImage.startsWith('http')) {
+        // Si es URL, descargar primero
+        toast.info('Descargando imagen...')
+        const response = await fetch(generatedImage)
+        const blob = await response.blob()
+        dataUrl = URL.createObjectURL(blob)
+      } else {
+        // Si es base64
+        dataUrl = `data:image/png;base64,${generatedImage}`
+      }
+      
+      const link = document.createElement('a')
+      link.href = dataUrl
+      link.download = `imageai-${Date.now()}.png`
+      link.click()
+      toast.success('Imagen descargada')
+    } catch (error) {
+      toast.error('Error al descargar')
+    }
   }
 
   // Copy prompt
@@ -590,9 +613,14 @@ export default function HomePage() {
                       </div>
                     ) : generatedImage ? (
                       <img
-                        src={`data:image/png;base64,${generatedImage}`}
+                        src={generatedImage.startsWith('http') ? generatedImage : `data:image/png;base64,${generatedImage}`}
                         alt="Generated"
                         className="w-full h-full object-contain"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.onerror = null
+                          target.src = '/placeholder.png'
+                        }}
                       />
                     ) : (
                       <div className="text-center space-y-4 p-8">
